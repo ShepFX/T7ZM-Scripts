@@ -12,12 +12,12 @@ provides.
 
 | In this repo | Deployed as | Running on |
 | --- | --- | --- |
-| `AFK/cuk_afk.gsc` | `cuk_afk.gsc` | 5 zombie servers |
-| `HUD/cuk_hud.gsc` | `cuk_hud.gsc` | 5 zombie servers |
-| `MapVote/cuk_mapvote.gsc` | `cuk_mapvote.gsc` | 5 zombie servers |
-| `NoGums/cuk_nogums.gsc` | `cuk_nogums.gsc` | 5 zombie servers |
-| `RoundLock/cuk_lock.gsc` | `cuk_lock.gsc` | 5 zombie servers |
-| `Stats/cuk_stats.gsc` | `cuk_stats.gsc` | 5 zombie servers |
+| `AFK/shep_afk.gsc` | `shep_afk.gsc` | 5 zombie servers |
+| `HUD/shep_hud.gsc` | `shep_hud.gsc` | 5 zombie servers |
+| `MapVote/shep_mapvote.gsc` | `shep_mapvote.gsc` | 5 zombie servers |
+| `NoGums/shep_nogums.gsc` | `shep_nogums.gsc` | 5 zombie servers |
+| `RoundLock/shep_lock.gsc` | `shep_lock.gsc` | 5 zombie servers |
+| `Stats/shep_stats.gsc` | `shep_stats.gsc` | 5 zombie servers |
 
 Last verified against the live servers on 2026-10-19.
 

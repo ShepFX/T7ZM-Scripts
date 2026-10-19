@@ -1,4 +1,4 @@
-// [CUK] Map vote for BO3 zombies (EZZ BOIII).
+// [Shep] Map vote for BO3 zombies (EZZ BOIII).
 //
 //   .map        starts a vote: "<player> wants to change map!" + a numbered list of the OTHER maps in
 //               this server's rotation (sv_maprotation), e.g.  .1 The Giant   .2 Der Eisendrache

@@ -1,4 +1,4 @@
-// [CUK] BO3 zombies stats - port of T4RoundSaverNew + T4Speedrun + T4LiveRound for EZZ BOIII.
+// [Shep] BO3 zombies stats - port of T4RoundSaverNew + T4Speedrun + T4LiveRound for EZZ BOIII.
 //
 // All three BO3 servers share one install, so every file is kept per server port under
 // boiii/scriptdata/cuk/<port>/ (writefile & co. are relative to boiii/scriptdata):

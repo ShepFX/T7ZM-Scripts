@@ -1,4 +1,4 @@
-// [CUK] BO3 HUD panel (EZZ BOIII) - same style as T4RunTimer.
+// [Shep] BO3 HUD panel (EZZ BOIII) - same style as T4RunTimer.
 //
 //   RUN      12:34     total game time; after a round ends it shows that round's split
 //                      ("R12  1:23", light blue) for 6 s, then goes back to the run clock

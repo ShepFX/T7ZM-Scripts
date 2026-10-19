@@ -1,4 +1,4 @@
-// [CUK] AFK system for BO3 zombies (EZZ BOIII) - port of t4_zm_afk.gsc.
+// [Shep] AFK system for BO3 zombies (EZZ BOIII) - port of t4_zm_afk.gsc.
 //
 // Type .afk in chat to toggle AFK. Rules (same as WaW):
 //   - round 20+, 45-minute cooldown between uses

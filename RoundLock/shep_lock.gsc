@@ -1,4 +1,4 @@
-// [CUK] Round locker for BO3 zombies (EZZ BOIII) - port of T4RoundLocker.gsc, same rules as WaW/BO1/BO2:
+// [Shep] Round locker for BO3 zombies (EZZ BOIII) - port of T4RoundLocker.gsc, same rules as WaW/BO1/BO2:
 //
 //   .lock      from round 1 starts a lock vote; a majority of the players on locks the server
 //   !lock      (a solo player locks it straight away). Votes stay open 60 s, 5-minute cooldown.

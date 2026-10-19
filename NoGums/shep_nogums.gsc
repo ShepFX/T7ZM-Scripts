@@ -1,4 +1,4 @@
-// [CUK] GobbleGums are disabled on the BO3 servers.
+// [Shep] GobbleGums are disabled on the BO3 servers.
 //
 // How: _zm_bgb_machine's __init__ only sets the per-round purchase limit to 3 "if not already defined".
 // This autoexec runs before any system __init__, so defining it as 0 here makes every gum machine show
