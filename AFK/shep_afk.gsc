@@ -21,7 +21,7 @@ function cuk_afk_strings()
     level.cuk_hud_strings_done = true;
     e = newhudelem();
     e.alpha = 0;
-    strings = array("RUN", "R", ":0", ":", "ZOMBIES", "DOGS", "LOCKED", "AFK");
+    strings = array("RUN", "R", ":0", ":", "ZOMBIES", "DOGS", "LOCKED", "AFK", "ROUND", "ALIVE");
     for (i = 0; i < strings.size; i++)
         e settext(strings[i]);
     e destroy();

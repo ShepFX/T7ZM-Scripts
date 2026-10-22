@@ -238,17 +238,19 @@ function cuk_round_watch()
             continue;
         last = level.round_number;
 
-        if (last == 1 && !isdefined(level.cuk_sr_start) && getplayers().size > 0)
+        if (last == 1 && !isdefined(level.cuk_sr_starting) && getplayers().size > 0)
         {
-            level.cuk_sr_start = gettime();
+            level.cuk_sr_starting = true;
             level.cuk_sr_roster = [];
             level.cuk_sr_locked = false;
+            level.cuk_sr_egg_stay = 60000;   // ms a round-1 leaver must have stayed to count on an egg
+            level thread cuk_sr_first_control();
         }
 
         if (isdefined(level.cuk_sr_start) && !isdefined(level.cuk_sr_invalid))
         {
             cuk_sr_roster();
-            // round 2 fixes the squad: whoever left during round 1 is not part of it
+            // round 2 fixes the squad: whoever left during round 1 is off the round boards (eggs keep them)
             if (last >= 2 && !level.cuk_sr_locked)
             {
                 cuk_sr_prune();
@@ -562,6 +564,49 @@ function cuk_sr_init()
         appendfile(level.cuk_sr_file, level.cuk_sr_run + "|" + level.cuk_map + "|boot|0|0|0||" + level.cuk_port + "\n");
 }
 
+// The run starts when the first player can actually play: their first move or button press after
+// spawning, so time spent loading in or in the fade from black costs nothing. Standing still does not
+// hold the clock for long: it starts 3 s after the first spawn at the latest, never before round 1.
+// shep_hud reads level.cuk_sr_start, so its clock always matches.
+function cuk_sr_first_control()
+{
+    level endon("end_game");
+    spawned = 0;
+    for (;;)
+    {
+        players = getplayers();
+        for (i = 0; i < players.size; i++)
+        {
+            p = players[i];
+            if (!isdefined(p) || !isdefined(p.sessionstate) || p.sessionstate != "playing")
+                continue;
+            if (spawned == 0)
+                spawned = gettime();
+            if (cuk_sr_acting(p))
+            {
+                level.cuk_sr_start = gettime();
+                return;
+            }
+        }
+        if (spawned > 0 && gettime() - spawned >= 3000)
+        {
+            level.cuk_sr_start = spawned + 3000;
+            return;
+        }
+        wait 0.05;
+    }
+}
+
+// moving along the ground (not just landing from the spawn drop) or pressing fire, aim, use, grenade or melee
+function cuk_sr_acting(p)
+{
+    v = p getvelocity();
+    if (v[0] * v[0] + v[1] * v[1] > 4)
+        return true;
+    return p attackbuttonpressed() || p adsbuttonpressed() || p usebuttonpressed()
+        || p fragbuttonpressed() || p meleebuttonpressed();
+}
+
 function cuk_sr_is_milestone(rnd)
 {
     for (i = 0; i < level.cuk_sr_milestones.size; i++)
@@ -570,22 +615,27 @@ function cuk_sr_is_milestone(rnd)
     return false;
 }
 
+// Round-1 leavers are marked, not dropped. Round 1 can be stalled as long as a squad likes, so a helper
+// could do every step of an egg but the last and leave before round 2: an egg counts everyone who was
+// in the game since round 1 began and stayed at least a minute (up to 4) - a random who joins and quits at
+// once does not turn a solo egg into a 2P one. The round boards only count those still in at round 2.
 function cuk_sr_prune()
 {
     players = getplayers();
-    kept = [];
     for (r = 0; r < level.cuk_sr_roster.size; r++)
     {
+        here = false;
         for (i = 0; i < players.size; i++)
         {
             if (isdefined(players[i]) && cuk_id(players[i]) == level.cuk_sr_roster[r].id)
             {
-                kept[kept.size] = level.cuk_sr_roster[r];
+                here = true;
                 break;
             }
         }
+        if (!here)
+            level.cuk_sr_roster[r].gone = true;
     }
-    level.cuk_sr_roster = kept;
 }
 
 function cuk_sr_roster()
@@ -603,7 +653,8 @@ function cuk_sr_roster()
         for (r = 0; r < level.cuk_sr_roster.size; r++)
             if (level.cuk_sr_roster[r].id == id)
                 slot = r;
-        if (slot < 0)
+        // a round-1 leaver back after round 2 counts as a new face, as before
+        if (slot < 0 || isdefined(level.cuk_sr_roster[slot].gone))
         {
             if (level.cuk_sr_locked)
             {
@@ -614,7 +665,9 @@ function cuk_sr_roster()
             slot = level.cuk_sr_roster.size;
             level.cuk_sr_roster[slot] = spawnstruct();
             level.cuk_sr_roster[slot].id = id;
+            level.cuk_sr_roster[slot].since = gettime();
         }
+        level.cuk_sr_roster[slot].seen = gettime();
         level.cuk_sr_roster[slot].name = cuk_name(p);
     }
 }
@@ -622,16 +675,26 @@ function cuk_sr_roster()
 function cuk_sr_log(kind, target)
 {
     elapsed = gettime() - level.cuk_sr_start;
-    if (isdefined(level.cuk_sr_invalid) || level.cuk_sr_roster.size == 0)
+    if (isdefined(level.cuk_sr_invalid))
         return;
     blocks = "";
+    count = 0;
     for (i = 0; i < level.cuk_sr_roster.size; i++)
     {
+        m = level.cuk_sr_roster[i];
+        if (isdefined(m.gone) && (kind != "ee" || m.seen - m.since < level.cuk_sr_egg_stay))
+            continue;
         if (blocks != "")
             blocks += ",";
         blocks += level.cuk_sr_roster[i].id + ":" + level.cuk_sr_roster[i].name;
+        count++;
     }
-    appendfile(level.cuk_sr_file, level.cuk_sr_run + "|" + level.cuk_map + "|" + kind + "|" + target + "|" + elapsed + "|" + level.cuk_sr_roster.size + "|" + blocks + "|" + level.cuk_port + "\n");
+    if (count == 0)
+        return;
+    // a swap in round 1 can leave 5 names on an egg; it still goes on the 4P board
+    if (count > 4)
+        count = 4;
+    appendfile(level.cuk_sr_file, level.cuk_sr_run + "|" + level.cuk_map + "|" + kind + "|" + target + "|" + elapsed + "|" + count + "|" + blocks + "|" + level.cuk_port + "\n");
     if (kind == "ee")
         cuk_say_all("^7Easter egg in ^2" + cuk_fmt_time(elapsed));
     else

@@ -19,7 +19,7 @@ provides.
 | `RoundLock/shep_lock.gsc` | `shep_lock.gsc` | 5 zombie servers |
 | `Stats/shep_stats.gsc` | `shep_stats.gsc` | 5 zombie servers |
 
-Last verified against the live servers on 2026-10-19.
+Last verified against the live servers on 2026-10-22.
 
 ## The scripts
 
@@ -27,9 +27,11 @@ Last verified against the live servers on 2026-10-19.
   countdown first, cancelled by taking damage or going down. While AFK (up to 15
   minutes) you are held at spawn with godmode and frozen points, and if everyone
   is AFK the round pauses. Port of the WaW AFK script.
-- **HUD**: run clock with per-round splits, and zombies (and dogs) left this
-  round. Text is a fixed set of strings and every number goes through
-  `setvalue()`, so long games can't overflow the configstring table.
+- **HUD** (`.counter`, `.timer`): zombies left this round, how many are alive
+  right now, dogs, the run clock and per-round splits, as plain text in the top
+  right with no panels. The clock starts with the speedrun timing below, so the
+  two always match. Text is a fixed set of strings and every number goes
+  through `setvalue()`, so long games can't overflow the configstring table.
 - **Map vote** (`.map`, `.1`, `.2` ..., `.map kino`, `.restart`): vote for
   another map in the rotation or a restart. A majority wins (solo is instant),
   votes last 60 seconds, with a 5-minute cooldown and one vote per player every
@@ -44,4 +46,7 @@ Last verified against the live servers on 2026-10-19.
   round, and per-player game stats (kills, downs, revives, box, perks,
   Pack-a-Punch, power-ups) for the stats website. Files are kept per server port
   under `boiii/scriptdata/cuk/<port>/`. Players are identified by their XUID,
-  converted to the decimal number IW4MAdmin uses.
+  converted to the decimal number IW4MAdmin uses. Speedrun timing starts at the
+  first player's first move or button press after spawning (3 seconds after
+  spawning at the latest), so a slow load-in costs nothing. Easter eggs also
+  count round-1 leavers who stayed at least a minute.

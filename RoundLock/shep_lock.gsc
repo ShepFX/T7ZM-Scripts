@@ -23,7 +23,7 @@ function cuk_lock_strings()
     level.cuk_hud_strings_done = true;
     e = newhudelem();
     e.alpha = 0;
-    strings = array("RUN", "R", ":0", ":", "ZOMBIES", "DOGS", "LOCKED", "AFK");
+    strings = array("RUN", "R", ":0", ":", "ZOMBIES", "DOGS", "LOCKED", "AFK", "ROUND", "ALIVE");
     for (i = 0; i < strings.size; i++)
         e settext(strings[i]);
     e destroy();
@@ -323,7 +323,7 @@ function cuk_lock_bold_all(msg)
             players[i] iprintlnbold(msg);
 }
 
-// ---------------------------------------------------------------- LOCKED tag (right of the cuk_hud panel)
+// ---------------------------------------------------------------- LOCKED tag (left of the ZOMBIES label)
 
 function cuk_lock_tag_build()
 {
@@ -336,12 +336,12 @@ function cuk_lock_tag_build()
     e.foreground = 1;
     e.hidewhendead = 0;
     e.hidewheninmenu = 1;
-    e.horzalign = "left";
+    e.horzalign = "right";
     e.vertalign = "top";
-    e.alignx = "left";
+    e.alignx = "right";
     e.aligny = "top";
-    e.x = 112;      // cuk_hud panel: x 20, width 84 + 4 px accent
-    e.y = 26;
+    e.x = -62;      // left of shep_hud's ZOMBIES label (top right: 2-digit number, then the label)
+    e.y = 18;
     e.fontscale = 1.0;
     e.color = (1, 0.15, 0.15);
     e.sort = 7;
