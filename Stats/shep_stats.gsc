@@ -8,6 +8,10 @@
 //   gamestats.txt     runId|map|round|reason|port|id|name|kills|headshots|downs|revives|bleedouts|points|joinRound|ms
 //                     |box|perks|pap|powerups|powerupTypes
 //                     (same format as T6GameStats.gsc; feeds the site's kills / revives / downs boards)
+//   gameevents.txt    runId|map|round|port|id|name|box|<weapon or "teddy">  one line per box spin (offered weapon)
+//                     runId|map|round|port|id|name|down|<x>,<y>,<z>       one line per down (31 Oct 2026)
+//                     runId|map|round|port|0|-|grid|<cx>,<cy>,<cz>,<n>;...  time per 64x64x128 cell (offset 65536), every 5 min
+//                     runId|map|round|port|0|-|mark|<type>:<name>:<x>,<y>,<z>  perks, box spots, wall buys (1 Nov 2026)
 //                     box = paid box spins, perks = machine purchases, pap = Pack-a-Punch uses,
 //                     powerupTypes = "nuke=2/full_ammo=1" (empty when none)
 // Player id is the player's XUID (BO3 has no IW4MAdmin persistentClientId yet).
@@ -37,6 +41,7 @@ function cuk_stats_main()
     cuk_sr_init();
 
     level thread cuk_round_watch();
+    level thread cuk_sr_watch_machines();
     level thread cuk_join_watch();
     cuk_ee_setup();
     level thread cuk_live_round();
@@ -607,6 +612,74 @@ function cuk_sr_acting(p)
         || p fragbuttonpressed() || p meleebuttonpressed();
 }
 
+// Box and Pack-a-Punch speedruns: the first paid box spin, the first Pack-a-Punch, and the moment every
+// player in the squad has Pack-a-Punched (2P+), from the game's own use_magicbox / use_pap counts.
+function cuk_sr_watch_machines()
+{
+    level endon("end_game");
+    papDone = [];
+    boxDone = false;
+    papFirst = false;
+    papSquad = false;
+    for (;;)
+    {
+        wait 0.1;
+        if (!isdefined(level.cuk_sr_start) || isdefined(level.cuk_sr_invalid))
+            continue;
+        players = getplayers();
+        newly = false;
+        for (i = 0; i < players.size; i++)
+        {
+            p = players[i];
+            if (!isdefined(p))
+                continue;
+            if (!boxDone && cuk_gs_stat(p, "use_magicbox", undefined) > 0)
+            {
+                boxDone = true;
+                cuk_sr_roster();
+                cuk_sr_log("box", "first");
+            }
+            id = cuk_id(p);
+            if (id != "" && !isdefined(papDone[id]) && cuk_gs_stat(p, "use_pap", undefined) > 0)
+            {
+                papDone[id] = true;
+                newly = true;
+            }
+        }
+        if (!newly)
+            continue;
+        cuk_sr_roster();
+        if (!papFirst)
+        {
+            papFirst = true;
+            cuk_sr_log("pap", "first");
+        }
+        if (!papSquad && cuk_sr_squad_papped(papDone))
+        {
+            papSquad = true;
+            cuk_sr_log("pap", "squad");
+        }
+        if (boxDone && papSquad)
+            return;
+    }
+}
+
+// two or more players in the squad (same rule as cuk_sr_log) and every one of them has Pack-a-Punched
+function cuk_sr_squad_papped(papDone)
+{
+    n = 0;
+    for (i = 0; i < level.cuk_sr_roster.size; i++)
+    {
+        m = level.cuk_sr_roster[i];
+        if (m.seen < gettime() - 1500 && m.seen - m.since < level.cuk_sr_egg_stay)
+            continue;
+        if (!isdefined(papDone[m.id]))
+            return false;
+        n++;
+    }
+    return n >= 2;
+}
+
 function cuk_sr_is_milestone(rnd)
 {
     for (i = 0; i < level.cuk_sr_milestones.size; i++)
@@ -682,7 +755,14 @@ function cuk_sr_log(kind, target)
     for (i = 0; i < level.cuk_sr_roster.size; i++)
     {
         m = level.cuk_sr_roster[i];
-        if (isdefined(m.gone) && (kind != "ee" || m.seen - m.since < level.cuk_sr_egg_stay))
+        if (kind == "box" || kind == "pap")
+        {
+            // box and Pack-a-Punch runs end early, often in round 1, before the roster is pruned: count who
+            // is in now, plus anyone who stayed a minute
+            if (m.seen < gettime() - 1500 && m.seen - m.since < level.cuk_sr_egg_stay)
+                continue;
+        }
+        else if (isdefined(m.gone) && (kind != "ee" || m.seen - m.since < level.cuk_sr_egg_stay))
             continue;
         if (blocks != "")
             blocks += ",";
@@ -695,7 +775,13 @@ function cuk_sr_log(kind, target)
     if (count > 4)
         count = 4;
     appendfile(level.cuk_sr_file, level.cuk_sr_run + "|" + level.cuk_map + "|" + kind + "|" + target + "|" + elapsed + "|" + count + "|" + blocks + "|" + level.cuk_port + "\n");
-    if (kind == "ee")
+    if (kind == "box")
+        cuk_say_all("^7First box spin in ^2" + cuk_fmt_time(elapsed));
+    else if (kind == "pap" && target == "squad")
+        cuk_say_all("^7Whole squad Pack-a-Punched in ^2" + cuk_fmt_time(elapsed));
+    else if (kind == "pap")
+        cuk_say_all("^7Pack-a-Punch in ^2" + cuk_fmt_time(elapsed));
+    else if (kind == "ee")
         cuk_say_all("^7Easter egg in ^2" + cuk_fmt_time(elapsed));
     else
         cuk_say_all("^7Round " + target + " in ^2" + cuk_fmt_time(elapsed));
@@ -709,7 +795,12 @@ function cuk_sr_log(kind, target)
 function cuk_gs_main()
 {
     level.cuk_gs_file = level.cuk_dir + "/gamestats.txt";
+    level.cuk_ev_file = level.cuk_dir + "/gameevents.txt";
     level.cuk_gs_sessions = [];
+    level thread cuk_gs_watch_box_spins();
+    level thread cuk_floor_sample();
+    level thread cuk_floor_flush();
+    level thread cuk_log_marks();
     level thread cuk_gs_watch_players();
     level thread cuk_gs_watch_end();
     level thread cuk_gs_watch_drops();
@@ -763,6 +854,7 @@ function cuk_gs_track()
     self thread cuk_gs_watch_bleedouts(s);
     self thread cuk_gs_watch_leave(s);
     self thread cuk_gs_watch_perks(s);
+    self thread cuk_gs_watch_downs();
 
     // keep a copy of the numbers: the entity is gone by the time "disconnect" arrives
     self endon("disconnect");
@@ -935,6 +1027,160 @@ function cuk_gs_snapshot(p, s)
     else
         s.points = 0;
     s.last_seen = gettime();
+}
+
+// Each spin ends with "randomization_done" on the chest's zbarrier, with the offered weapon in
+// zbarrier.weapon; a teddy bear sets the moving_chest_now flag first (zm_magicbox.gsc).
+// chest_user is the player who paid.
+function cuk_gs_watch_box_spins()
+{
+    while (!isdefined(level.chests))
+        wait 1;
+    for (i = 0; i < level.chests.size; i++)
+    {
+        if (isdefined(level.chests[i]) && isdefined(level.chests[i].zbarrier))
+            level.chests[i] thread cuk_gs_watch_chest();
+    }
+}
+
+function cuk_gs_watch_chest()
+{
+    level endon("end_game");
+    for (;;)
+    {
+        self.zbarrier waittill("randomization_done");
+        user = self.chest_user;
+        if (!isdefined(user) || !isplayer(user))
+            continue;
+        weapon = "teddy";
+        if (!cuk_flag_set("moving_chest_now") && isdefined(self.zbarrier.weapon) && isdefined(self.zbarrier.weapon.name))
+            weapon = "" + self.zbarrier.weapon.name;
+        cuk_gs_event(user, "box", weapon);
+    }
+}
+
+// the downs count goes up on every down; where the player was when it did
+function cuk_gs_watch_downs()
+{
+    self endon("disconnect");
+    last = cuk_gs_stat(self, "downs", self.downs);
+    for (;;)
+    {
+        wait 0.2;
+        now = cuk_gs_stat(self, "downs", self.downs);
+        if (now > last)
+            cuk_gs_event(self, "down", int(self.origin[0]) + "," + int(self.origin[1]) + "," + int(self.origin[2]));
+        last = now;
+    }
+}
+
+// every 2 s, one count for the cell each playing player stands in (floor plans for the heatmaps)
+function cuk_floor_sample()
+{
+    level.cuk_floor = [];
+    for (;;)
+    {
+        wait 2;
+        if (cuk_gs_over())
+            return;
+        players = getplayers();
+        for (i = 0; i < players.size; i++)
+        {
+            p = players[i];
+            if (!isdefined(p) || !isdefined(p.sessionstate) || p.sessionstate != "playing")
+                continue;
+            key = int((p.origin[0] + 65536) / 64) + "," + int((p.origin[1] + 65536) / 64) + "," + int((p.origin[2] + 65536) / 128);
+            if (!isdefined(level.cuk_floor[key]))
+                level.cuk_floor[key] = 0;
+            level.cuk_floor[key] = level.cuk_floor[key] + 1;
+        }
+    }
+}
+
+// the counts go out every 5 minutes (and at game over), 40 cells a line
+function cuk_floor_flush()
+{
+    for (;;)
+    {
+        for (t = 0; t < 300 && !cuk_gs_over(); t++)
+            wait 1;
+        cells = level.cuk_floor;
+        level.cuk_floor = [];
+        if (isdefined(cells))
+        {
+            keys = getarraykeys(cells);
+            data = "";
+            n = 0;
+            for (i = 0; i < keys.size; i++)
+            {
+                if (n > 0)
+                    data = data + ";";
+                data = data + keys[i] + "," + cells[keys[i]];
+                n++;
+                if (n == 40 || i == keys.size - 1)
+                {
+                    cuk_level_line("grid", data);
+                    data = "";
+                    n = 0;
+                }
+            }
+        }
+        if (cuk_gs_over())
+            return;
+    }
+}
+
+// where the perk machines, box spots and wall buys are
+function cuk_log_marks()
+{
+    wait 10;
+    vending = getentarray("zombie_vending", "targetname");
+    for (i = 0; i < vending.size; i++)
+    {
+        if (isdefined(vending[i].script_noteworthy))
+            cuk_mark("perk", vending[i].script_noteworthy, vending[i].origin);
+    }
+    for (t = 0; t < 1200 && !isdefined(level.chests); t++)
+        wait 1;
+    if (isdefined(level.chests))
+    {
+        for (i = 0; i < level.chests.size; i++)
+        {
+            if (isdefined(level.chests[i]) && isdefined(level.chests[i].origin))
+                cuk_mark("box", "box", level.chests[i].origin);
+        }
+    }
+    if (isdefined(level._spawned_wallbuys))
+    {
+        for (i = 0; i < level._spawned_wallbuys.size; i++)
+        {
+            w = level._spawned_wallbuys[i];
+            if (isdefined(w) && isdefined(w.origin) && isdefined(w.weapon) && isdefined(w.weapon.name))
+                cuk_mark("wall", "" + w.weapon.name, w.origin);
+        }
+    }
+}
+
+function cuk_mark(type, name, origin)
+{
+    cuk_level_line("mark", type + ":" + name + ":" + int(origin[0]) + "," + int(origin[1]) + "," + int(origin[2]));
+}
+
+function cuk_level_line(type, data)
+{
+    appendfile(level.cuk_ev_file, level.cuk_sr_run + "|" + level.cuk_map + "|" + cuk_gs_round() + "|" + level.cuk_port + "|0|-|"
+        + type + "|" + data + "\n");
+}
+
+function cuk_gs_event(p, type, data)
+{
+    if (cuk_gs_over())
+        return;
+    id = cuk_id(p);
+    if (id == "")
+        return;
+    appendfile(level.cuk_ev_file, level.cuk_sr_run + "|" + level.cuk_map + "|" + cuk_gs_round() + "|" + level.cuk_port + "|"
+        + id + "|" + cuk_name(p) + "|" + type + "|" + data + "\n");
 }
 
 function cuk_gs_write(s, reason)
