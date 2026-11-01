@@ -14,6 +14,9 @@
 //                     runId|map|round|port|0|-|mark|<type>:<name>:<x>,<y>,<z>  perks, box spots, wall buys (1 Nov 2026)
 //                     box = paid box spins, perks = machine purchases, pap = Pack-a-Punch uses,
 //                     powerupTypes = "nuke=2/full_ammo=1" (empty when none)
+// Live radar (1 Nov 2026), stock maps only: every second, one line per player into the game log
+// (logprint, like BO3's own J;/K; lines) in the format IW4MAdmin's Live Radar reads, keyed by XUID in hex:
+//   LiveRadar;<xuid hex>;<origin>;<angles>;<up|down|dead>;0;0;0;none;<health>;<alive>;0
 // Player id is the player's XUID (BO3 has no IW4MAdmin persistentClientId yet).
 // Easter egg ("ee") timing is not wired up yet - rounds only.
 
@@ -801,6 +804,7 @@ function cuk_gs_main()
     level thread cuk_floor_sample();
     level thread cuk_floor_flush();
     level thread cuk_log_marks();
+    level thread cuk_radar();
     level thread cuk_gs_watch_players();
     level thread cuk_gs_watch_end();
     level thread cuk_gs_watch_drops();
@@ -1071,6 +1075,52 @@ function cuk_gs_watch_downs()
         if (now > last)
             cuk_gs_event(self, "down", int(self.origin[0]) + "," + int(self.origin[1]) + "," + int(self.origin[2]));
         last = now;
+    }
+}
+
+// live radar lines, stock maps only (custom maps get no radar)
+function cuk_radar()
+{
+    stock = array("zm_zod", "zm_factory", "zm_castle", "zm_island", "zm_stalingrad", "zm_genesis", "zm_tomb",
+                  "zm_moon", "zm_temple", "zm_cosmodrome", "zm_theater", "zm_prototype", "zm_asylum", "zm_sumpf");
+    found = false;
+    for (i = 0; i < stock.size; i++)
+        if (stock[i] == level.cuk_map)
+            found = true;
+    if (!found)
+        return;
+    for (;;)
+    {
+        wait 1;
+        if (cuk_gs_over())
+            return;
+        players = getplayers();
+        for (i = 0; i < players.size; i++)
+        {
+            p = players[i];
+            if (!isdefined(p))
+                continue;
+            xuid = p getxuid();
+            if (!isdefined(xuid))
+                continue;
+            xuid = tolower("" + xuid);
+            if (getsubstr(xuid, 0, 2) == "0x")
+                xuid = getsubstr(xuid, 2, xuid.size);
+            alive = isdefined(p.sessionstate) && p.sessionstate == "playing";
+            state = "up";
+            if (!alive)
+                state = "dead";
+            else if (isdefined(p.revivetrigger) || (isdefined(p.laststand) && p.laststand))
+                state = "down";
+            alive_n = 0;
+            if (alive)
+                alive_n = 1;
+            health = 0;
+            if (isdefined(p.health))
+                health = int(p.health);
+            logprint("LiveRadar;" + xuid + ";" + p.origin + ";" + p getplayerangles() + ";" + state
+                + ";0;0;0;none;" + health + ";" + alive_n + ";0\n");
+        }
     }
 }
 
